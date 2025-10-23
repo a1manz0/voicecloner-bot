@@ -1,0 +1,16 @@
+telethon==1.41.1
+asyncpg==0.27.0
+celery==5.2.7
+redis==4.5.0
+python-dotenv==1.0.0
+fastapi==0.95.2
+uvicorn==0.22.0
+requests==2.31.0
+yookassa==3.0.0
+robokassa==1.0.7
+python-multipart==0.0.20
+gradio_client==1.12.1
+ffmpeg-python==0.2.0
+soundfile==0.13.1
+ruaccent==1.5.8.3
+torch==2.6.0
