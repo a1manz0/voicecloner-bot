@@ -613,7 +613,7 @@ def synthesize_and_send(
             send_text(chat_id, "У вас недостаточно минут для требуемой генерации")
         tts_provider_name = TTS_PROVIDER_MAP.get(tts_provider)
         if tts_provider_name:
-            increase_model_count(tts_provider)
+            increase_model_count(tts_provider_name)
         return {"status": "ok", "sent_to": chat_id}
     except Exception as e:
         send_text(chat_id, "Произошла ошибка во время генерации")
