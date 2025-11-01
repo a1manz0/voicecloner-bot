@@ -26,6 +26,7 @@ from config import (
     API_ID,
     API_HASH,
     BOT_TOKEN,
+    TTS_PROVIDER_MAP,
     WORKER_NUMBER,
     OUTPUT_DIR,
     ACCENT_URL,
@@ -33,7 +34,7 @@ from config import (
     FISH_API_KEY,
 )
 from ui_components import MAIN_MENU_BUTTONS_COMMANDS
-from db import consume_credit
+from db import consume_credit, increase_model_count
 from fish_audio_sdk import Session, TTSRequest, ReferenceAudio, ASRRequest
 
 
@@ -610,6 +611,9 @@ def synthesize_and_send(
             )
         else:
             send_text(chat_id, "У вас недостаточно минут для требуемой генерации")
+        tts_provider_name = TTS_PROVIDER_MAP.get(tts_provider)
+        if tts_provider_name:
+            increase_model_count(tts_provider)
         return {"status": "ok", "sent_to": chat_id}
     except Exception as e:
         send_text(chat_id, "Произошла ошибка во время генерации")

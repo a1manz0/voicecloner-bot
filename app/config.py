@@ -82,6 +82,7 @@ HELP_TEXT = (
     "Задать вопрос/сообщить о баге: https://t.me/ask_garage\n"
     "Канал с новостями о проекте: https://t.me/a1manz001"
 )
+TTS_PROVIDER_MAP = {1: "F5-TTS", 2: "OpenAudio S1", 3: "EL"}
 
 
 def load_settings_from_directus():

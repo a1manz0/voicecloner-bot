@@ -72,6 +72,19 @@ async def set_user_ref_path(user_id: int, ref_path: str):
         )
 
 
+async def increase_model_count(model_name: str):
+    pool = await init_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE models
+            SET count = models.count + 1
+            WHERE name = $1
+            """,
+            model_name,
+        )
+
+
 async def set_user_model(user_id: int, model_id: int):
     pool = await init_db_pool()
     async with pool.acquire() as conn:
