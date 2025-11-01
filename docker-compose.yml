@@ -1,4 +1,22 @@
 services:
+  webhooks_accent:
+    image: tts-telegram
+    restart: unless-stopped
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: uvicorn accent_backend:app --host 0.0.0.0 --port 17871
+    ports: ["17871:17871"]
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+      - ./hf_cache:/hf_cache
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+
   f5-tts:
     image: f5tts:v1
     restart: unless-stopped

@@ -495,6 +495,7 @@ def synthesize_and_send(
                                 f"Ошибка запроса к Accentizer: {response.status_code} {response.text}"
                             )
                     except Exception as e:
+                        print("ACCENT не доступен")
                         print(e)
                 if tts_provider == 1:
                     # стандартный путь — F5 / локальный Gradio
