@@ -8,7 +8,7 @@ from ui_components import (
     MODEL_CHOICE_BUTTONS,
     BUY_CREDITS_BUTTONS,
 )
-from config import HELP_TEXT, load_settings_from_directus
+import config
 
 
 # Обработчики команд
@@ -16,7 +16,7 @@ from config import HELP_TEXT, load_settings_from_directus
 async def update_handler(event):
     user_id = event.sender_id
     if user_id == 588440387:
-        load_settings_from_directus()
+        config.load_settings_from_directus()
 
 
 @client.on(events.NewMessage(pattern="/ogg"))
@@ -52,7 +52,7 @@ async def start_handler(event):
     sender = await event.get_sender()  # загрузит User (или None)
     username = getattr(sender, "username", None)  # может быть None
     await ensure_user(uid, username=username)
-    await show_persistent_menu(client, chat_id, caption=HELP_TEXT)
+    await show_persistent_menu(client, chat_id, caption=config.HELP_TEXT)
 
 
 @client.on(events.NewMessage(pattern=r"^/(choose_voice|выбрать_голос)$"))
@@ -92,7 +92,7 @@ async def choose_model_handler(event):
 @client.on(events.NewMessage(pattern=r"^/(help|помощь)$"))
 async def help_handler(event):
     # await event.reply(HELP_TEXT, parse_mode="html")
-    await show_persistent_menu(client, event.chat_id, caption=HELP_TEXT)
+    await show_persistent_menu(client, event.chat_id, caption=config.HELP_TEXT)
 
 
 @client.on(events.NewMessage(pattern=r"^/(topup|купить_минуты)$"))

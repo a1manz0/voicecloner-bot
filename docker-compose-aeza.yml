@@ -93,6 +93,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - directus
 
   worker1:
     image: tts-telegram
