@@ -61,7 +61,6 @@ async def save_ref_path(event, user_id, st, ref_path=None):
 # Главный обработчик сообщений (загрузка референса и состояния для топапа)
 @client.on(events.NewMessage(incoming=True))
 async def global_handler(event):
-    print("TEEEST")
     user_id = event.sender_id
     chat_id = event.chat_id
 
@@ -81,6 +80,7 @@ async def global_handler(event):
     ref_path = st.get("ref_path")
     mode = st.get("mode", False)
     auto_accent = st.get("auto_accent", True)
+    tts_provider = st.get("model_id", 1)
 
     if awaiting:
         # Ожидаем, что пользователь прислал число: количество минут
@@ -104,12 +104,6 @@ async def global_handler(event):
             )
             return
 
-    # Простая команда показать баланс
-    elif text == "/balance":
-        avail = await get_available_credits(user_id, username=username)
-        await event.reply(f"Вам доступно {avail} минут.")
-        return
-
     # Если пользователь отправил "Выбрать голос" ранее (state selected_voice) — простое сообщение-напоминание
     elif not text.startswith("/"):
         if ref_path:
@@ -123,6 +117,7 @@ async def global_handler(event):
                 send_as_mp3=mode == "mp3",
                 caption="",
                 auto_accent=auto_accent,
+                tts_provider=tts_provider,
             )
             await show_persistent_menu(
                 client, event.chat_id, caption="Задача поставлена в очередь..."

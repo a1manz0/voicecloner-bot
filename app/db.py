@@ -30,14 +30,15 @@ async def ensure_user(user_id: int, username=None):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-        INSERT INTO users (user_id, username, link, auto_accent)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO users (user_id, username, link, auto_accent, model_id)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (user_id) DO NOTHING
         """,
             user_id,
             username,
             link,
             "True",
+            1,
         )
 
 
@@ -67,6 +68,20 @@ async def set_user_ref_path(user_id: int, ref_path: str):
             WHERE user_id = $2
             """,
             ref_path,
+            user_id,
+        )
+
+
+async def set_user_model(user_id: int, model_id: int):
+    pool = await init_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET model_id = $1
+            WHERE user_id = $2
+            """,
+            model_id,
             user_id,
         )
 

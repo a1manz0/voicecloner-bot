@@ -1,6 +1,6 @@
 import logging
 import json
-from telethon import events, Button, types, functions
+from telethon import events, Button, types, functions, errors
 from client_provider import client
 from config import (
     RUB_PER_MIN,

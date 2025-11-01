@@ -5,9 +5,10 @@ from state import get_state
 from ui_components import (
     show_persistent_menu,
     VOICE_CHOICE_BUTTONS,
+    MODEL_CHOICE_BUTTONS,
     BUY_CREDITS_BUTTONS,
-    HELP_TEXT,
 )
+from config import HELP_TEXT
 
 
 # Обработчики команд
@@ -56,6 +57,24 @@ async def choose_voice_handler(event):
         errors.rpcerrorlist.MessageIdInvalidError,
     ) as e:
         await event.respond("Выберите голос:", buttons=VOICE_CHOICE_BUTTONS)
+        try:
+            await event.message.delete()  # удалить старое сообщение с кнопками
+        except Exception:
+            pass
+    return
+
+
+@client.on(events.NewMessage(pattern=r"^/(choose_model|выбрать_модель)$"))
+async def choose_model_handler(event):
+    try:
+        await event.edit("Выберите модель синтеза речи:", buttons=MODEL_CHOICE_BUTTONS)
+    except (
+        errors.rpcerrorlist.MessageEditTimeExpiredError,
+        errors.rpcerrorlist.MessageIdInvalidError,
+    ) as e:
+        await event.respond(
+            "Выберите модель синтеза речи:", buttons=MODEL_CHOICE_BUTTONS
+        )
         try:
             await event.message.delete()  # удалить старое сообщение с кнопками
         except Exception:

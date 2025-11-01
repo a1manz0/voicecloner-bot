@@ -30,9 +30,11 @@ from config import (
     OUTPUT_DIR,
     ACCENT_URL,
     API_TOKEN,
+    FISH_API_KEY,
 )
 from ui_components import MAIN_MENU_BUTTONS_COMMANDS
 from db import consume_credit
+from fish_audio_sdk import Session, TTSRequest, ReferenceAudio, ASRRequest
 
 
 def wait_for_gradio(url, timeout=60, interval=3):
@@ -118,14 +120,129 @@ def get_gradio_client():
     return _gradio_client
 
 
-def get_accentizer():
-    global _accentizer
-    if _accentizer is None:
-        _accentizer = RUAccent()
-        _accentizer.load(
-            omograph_model_size="turbo3.1", use_dictionary=True, tiny_mode=False
+def call_s1_tts(
+    ref_audio_local_path: str, gen_text: str, out_path: str, model="s1", format="wav"
+):
+    """
+    Генерирует речь через Fish Audio (openaudio s1) SDK.
+    - ref_audio_local_path: локальный путь к референсу (wav/ogg/mp3)
+    - gen_text: текст для синтеза
+    - out_path: куда записать результирующий файл (например temp_xxx.wav)
+    - model: "s1" по умолчанию
+    - format: желаемый формат ("wav" предпочтительно для последующей конкатенации)
+    Возвращает out_path при успехе, иначе None.
+    """
+
+    if not FISH_API_KEY:
+        print("FISH_API_KEY не задан; пропускаем call_s1_tts")
+        return None
+
+    try:
+        session = Session(FISH_API_KEY)
+        # читаем референс
+        with open(ref_audio_local_path, "rb") as f:
+            audio_data = f.read()
+        try:
+            # если хотите принудительно английский: language="en"
+            asr_resp = session.asr(ASRRequest(audio=audio_data, language="en"))
+        except Exception as e:
+            print("ASR error:", e)
+            raise
+        request = TTSRequest(
+            text=gen_text,
+            references=[
+                ReferenceAudio(
+                    audio=audio_data,
+                    text=asr_resp.text,  # текст, совпадающий с референсом; можно оставить пустым
+                )
+            ],
+            # параметры: подберите по нуждам; используем WAV для удобства
+            format=format,
+            language="ru",
+            # можно добавить temperature=0.9, top_p=0.9 и т.д.
+            # temperature=0.9, top_p=0.9
         )
-    return _accentizer
+
+        # Стримим в файл
+        with open(out_path, "wb") as out_f:
+            for chunk in session.tts(request, "s1"):
+                out_f.write(chunk)
+
+        # Убедимся, что файл не пустой
+        if os.path.exists(out_path) and os.path.getsize(out_path) > 100:
+            return out_path
+        else:
+            print("call_s1_tts: получен пустой файл")
+            return None
+
+    except Exception as e:
+        print("call_s1_tts error:", e)
+        return None
+
+
+def create_ivc_from_paths(client, name, paths):
+    # Вариант: передаём пути
+    voice = client.voices.ivc.create(
+        name=name,
+        files=paths,  # SDK поддерживает список путей
+    )
+    return voice
+
+
+from config import ELEVENLABS_API_KEY
+from elevenlabs.client import ElevenLabs
+from io import BytesIO
+
+elevenlabs = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+output_format = "mp3_44100_128"
+
+
+def call_elevenlabs_tts(
+    clone_name,
+    ref_audio_local_path: str,
+    gen_text: str,
+    out_path: str,
+    format="wav",
+):
+    """
+    Генерирует речь через ElevenLabs SDK.
+    - ref_audio_local_path: локальный путь к референсу (wav/ogg/mp3)
+    - gen_text: текст для синтеза
+    - out_path: куда записать результирующий файл (например temp_xxx.wav)
+    - model: "s1" по умолчанию
+    - format: желаемый формат ("wav" предпочтительно для последующей конкатенации)
+    Возвращает out_path при успехе, иначе None.
+    """
+
+    if not ELEVENLABS_API_KEY:
+        print("ELEVENLABS_API_KEY не задан; пропускаем call_elevenlabs_tts")
+        return None
+
+    try:
+        voice = elevenlabs.voices.ivc.create(
+            name=clone_name,
+            # Replace with the paths to your audio files.
+            # The more files you add, the better the clone will be.
+            files=[BytesIO(open(ref_audio_local_path, "rb").read())],
+        )
+
+        print("SSSSSSSSSSSSSSS2")
+        response = elevenlabs.text_to_speech.convert(
+            text=gen_text,
+            voice_id=voice.voice_id,
+            model_id="eleven_multilingual_v2",  # рекомендуемая мультиязычная модель
+            output_format=output_format,
+        )
+        print("SSSSSSSSSSSSSSS3")
+        with open(out_path, "wb") as f:
+            for chunk in response:
+                if chunk:
+                    f.write(chunk)
+        return out_path
+
+    except Exception as e:
+        print("call_s1_tts error:", e)
+        raise
 
 
 def call_basic_tts_and_save(
@@ -215,26 +332,34 @@ def send_file(chat_id, final_path):
         resp.raise_for_status()
 
 
+# Формируем клавиатуру
+keyboard = []
+for row in MAIN_MENU_BUTTONS_COMMANDS:
+    keyboard_row = [{"text": command} for command, _label in row]
+    keyboard.append(keyboard_row)
+
+reply_markup = {
+    "keyboard": keyboard,
+    "resize_keyboard": True,
+    "one_time_keyboard": False,
+    "persistent_keyboard": True,
+}
+
+
 def send_text(chat_id, text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    resp = requests.post(url, json={"chat_id": chat_id, "text": text})
+    resp = requests.post(
+        url,
+        json={
+            "chat_id": chat_id,
+            "text": text,
+            "reply_markup": json.dumps(reply_markup),
+        },
+    )
     resp.raise_for_status()
 
 
 def send_file_with_persistent_menu(chat_id, file_path, send_as_mp3=False):
-    # Формируем клавиатуру
-    keyboard = []
-    for row in MAIN_MENU_BUTTONS_COMMANDS:
-        keyboard_row = [{"text": command} for command, _label in row]
-        keyboard.append(keyboard_row)
-
-    reply_markup = {
-        "keyboard": keyboard,
-        "resize_keyboard": True,
-        "one_time_keyboard": False,
-        "persistent_keyboard": True,
-    }
-
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
 
     with open(file_path, "rb") as f:
@@ -248,6 +373,55 @@ def send_file_with_persistent_menu(chat_id, file_path, send_as_mp3=False):
         resp.raise_for_status()
 
 
+from pathlib import Path
+from config import VC_PROXY_API_KEY, VC_PROXY_BACKEND_URL
+
+
+def generate_via_tts_backend(
+    user_id: int, ref_audio_local_path: str, text: str, temp_base_path: str
+) -> str:
+    # сформируем имя для сохраняемого файла
+    Path(temp_base_path).mkdir(parents=True, exist_ok=True)
+    out_filename = f"{user_id}_{int(time.time())}.mp3"
+    out_path = str(Path(temp_base_path) / out_filename)
+
+    headers = {"X-API-KEY": VC_PROXY_API_KEY}
+    with open(ref_audio_local_path, "rb") as f:
+        files = {
+            "ref_audio": (
+                os.path.basename(ref_audio_local_path),
+                f,
+                "application/octet-stream",
+            )
+        }
+        data = {"text": text}
+
+        # stream=True чтобы не держать весь ответ в памяти
+        resp = requests.post(
+            VC_PROXY_BACKEND_URL,
+            headers=headers,
+            files=files,
+            data=data,
+            stream=True,
+            timeout=120,
+        )
+        resp.raise_for_status()
+
+        # пишем поток в файл
+        with open(out_path, "wb") as outf:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    outf.write(chunk)
+
+    # при желании удалить локальный референс (чтобы он не оставался)
+    try:
+        os.remove(ref_audio_local_path)
+    except Exception:
+        pass
+
+    return out_path
+
+
 @celery_app.task(bind=True, acks_late=True, soft_time_limit=360)
 def synthesize_and_send(
     self,
@@ -259,6 +433,7 @@ def synthesize_and_send(
     auto_accent=True,
     send_as_mp3=True,
     caption=None,
+    tts_provider=1,
 ):
     """
     Упрощённая задача, ориентированная на кейс: F5 возвращает абсолютный путь на хосте (например /tmp/xxx.wav).
@@ -267,11 +442,10 @@ def synthesize_and_send(
       - ffmpeg в образе, если нужна конвертация в mp3.
       - API_ID/API_HASH/BOT_TOKEN заданы в окружении воркера.
     """
-
     # accentizer = get_accentizer()
     # подготовим временную рабочую папку внутри /tmp
     if not os.path.exists(ref_audio_local_path):
-        print("Референсный аудиофайл не найден:", LOCAL_REF_AUDIO)
+        print("Референсный аудиофайл не найден:", ref_audio_local_path)
         print("Подготовьте короткий WAV и укажите путь в LOCAL_REF_AUDIO.")
         return
 
@@ -301,7 +475,7 @@ def synthesize_and_send(
             else:
                 # обычный текст — в синтез
                 temp_base_path = f"temp_{len(paths_to_cleanup)}.wav"
-                if auto_accent:
+                if auto_accent and tts_provider == 1:
                     try:
                         url = f"{ACCENT_URL}/accent"
                         headers = {
@@ -322,12 +496,24 @@ def synthesize_and_send(
                             )
                     except Exception as e:
                         print(e)
-                unique_final_path = call_basic_tts_and_save(
-                    ref_audio_local_path,
-                    "",
-                    part,
-                    out_path=temp_base_path,
-                )
+                if tts_provider == 1:
+                    # стандартный путь — F5 / локальный Gradio
+                    unique_final_path = call_basic_tts_and_save(
+                        ref_audio_local_path, "", part, out_path=temp_base_path
+                    )
+
+                elif tts_provider == 2:
+                    unique_final_path = call_s1_tts(
+                        ref_audio_local_path,
+                        part,
+                        out_path=temp_base_path,
+                        model="s1",
+                        format="wav",
+                    )
+                elif tts_provider == 3:
+                    unique_final_path = call_elevenlabs_tts(
+                        str(user_id), ref_audio_local_path, part, temp_base_path
+                    )
                 # send_file(chat_id, unique_final_path)
 
                 paths_to_cleanup.append(unique_final_path)
@@ -426,6 +612,8 @@ def synthesize_and_send(
         else:
             send_text(chat_id, "У вас недостаточно минут для требуемой генерации")
         return {"status": "ok", "sent_to": chat_id}
+    except Exception as e:
+        send_text(chat_id, "Произошла ошибка во время генерации")
 
     finally:
         # Удаляем все файлы, пути к которым мы получили от функции синтеза

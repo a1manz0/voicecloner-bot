@@ -1,7 +1,7 @@
 from telethon import events, errors
 from bot import client  # Импортируем 'client' из главного bot.py
 from config import REF_VOICE_1, REF_VOICE_2
-from db import set_user_ref_path, get_available_credits
+from db import set_user_ref_path, get_available_credits, set_user_model
 from state import get_state
 from ui_components import (
     VOICE_CHOICE_BUTTONS,
@@ -9,6 +9,7 @@ from ui_components import (
     TOPUP_ROBOKASSA_BUTTONS,
     TOPUP_STARS_BUTTONS,
     MAIN_MENU_BUTTONS,
+    S1_INSTRUCTIONS,
 )
 
 
@@ -66,6 +67,34 @@ async def callback_handler(event):
                 REF_VOICE_2,
                 caption=f"Выбран голос {choice}. Отправьте текст, чтобы получить речь",
             )
+        return
+    if data.startswith("model:"):
+        choice = data.split(":", 1)[1]
+        st = await get_state(event)
+        model_name = 1
+        if choice == "1":
+            model_name = "F5-TTS"
+            st["model_id"] = 1
+            await set_user_model(uid, 2)
+        elif choice == "2":
+            model_name = "OpenAudio S1"
+            st["model_id"] = 2
+            await set_user_model(uid, 2)
+        elif choice == "3":
+            model_name = "EL"
+            st["model_id"] = 3
+            await set_user_model(uid, 3)
+        try:
+            await event.edit(f"Вы выбрали модель {model_name}", parse_mode="html")
+        except (
+            errors.rpcerrorlist.MessageEditTimeExpiredError,
+            errors.rpcerrorlist.MessageIdInvalidError,
+        ) as e:
+            await event.respond("Вы выбрали модель F5-TTS", parse_mode="html")
+            try:
+                await event.message.delete()  # удалить старое сообщение с кнопками
+            except Exception:
+                pass
         return
 
     if data == "buy_credits":

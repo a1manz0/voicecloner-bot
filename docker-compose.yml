@@ -31,6 +31,7 @@ services:
       DB_DATABASE: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      STORAGE_LOCAL_ROOT: "./refs"
     ports: ["8055:8055"]
     depends_on:
       - postgres
@@ -81,6 +82,7 @@ services:
       PG_PASSWORD: ${POSTGRES_PASSWORD}
       PG_DB: ${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
+      DIRECTUS_URL: http://directus:8055
       SHARED_BASE: /app/data
     env_file:
       - .env
@@ -102,9 +104,14 @@ services:
     command: celery -A tasks.celery_app worker --loglevel=info -n worker1@%h -Q tts
     env_file:
       - .env
+    stop_signal: SIGTERM
+    stop_grace_period: 120s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       REDIS_URL: redis://redis:6379/0
-      GRADIO_URL: http://f5-tts:7861
+      GRADIO_URL: http://127.0.0.1:17861
       ACCENT_URL: http://webhooks:8000
       SHARED_BASE: /app/data
       WORKER_NUMBER: 1
@@ -113,13 +120,18 @@ services:
       PG_USER: ${POSTGRES_USER}
       PG_PASSWORD: ${POSTGRES_PASSWORD}
       PG_DB: ${POSTGRES_DB}
+      HTTP_PROXY: "socks5h://socks-tunnel:1080"
+      HTTPS_PROXY: "socks5h://socks-tunnel:1080"
+      ALL_PROXY: "socks5h://socks-tunnel:1080"
     volumes:
       - /tmp:/tmp 
       - ./app:/app
       - ./data:/app/data
       - ./refs:/refs
       - ./out:/out
+    # network_mode: "service:wireguard"
     depends_on:
+      - socks-tunnel
       - redis
       - postgres
 
@@ -132,10 +144,16 @@ services:
     command: celery -A tasks.celery_app worker --loglevel=info -n worker2@%h -Q tts
     env_file:
       - .env
+    stop_signal: SIGTERM
+    stop_grace_period: 120s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    # network_mode: "service:wireguard"
     environment:
       REDIS_URL: redis://redis:6379/0
       ACCENT_URL: http://webhooks:8000
-      GRADIO_URL: http://f5-tts2:7862
+      GRADIO_URL: http://127.0.0.1:17861
       SHARED_BASE: /app/data
       WORKER_NUMBER: 2
       PG_HOST: postgres
@@ -143,6 +161,9 @@ services:
       PG_USER: ${POSTGRES_USER}
       PG_PASSWORD: ${POSTGRES_PASSWORD}
       PG_DB: ${POSTGRES_DB}
+      HTTP_PROXY: "socks5h://socks-tunnel:1080"
+      HTTPS_PROXY: "socks5h://socks-tunnel:1080"
+      ALL_PROXY: "socks5h://socks-tunnel:1080"
     volumes:
       - ./app:/app
       - /tmp:/tmp 
@@ -150,6 +171,7 @@ services:
       - ./refs:/refs
       - ./out:/out
     depends_on:
+      - socks-tunnel
       - redis
       - postgres
 
@@ -186,7 +208,17 @@ services:
       - "7862"
       - "--host"
       - "0.0.0.0"
-
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer-vc-bot
+    ports:
+      - "9443:9443"        # HTTPS интерфейс Portainer
+      - "9000:9000"        # HTTP-интерфейс (при желании)
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
 volumes:
   pgdata:
+  portainer_data:
   f5-tts-cache:

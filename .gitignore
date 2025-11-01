@@ -16,7 +16,6 @@ models/
 out/
 tuna-config/tuna.yml
 refs/*/
-!refs/*
 
 # Логи и файлы настроек
 *.log
