@@ -16,7 +16,7 @@ PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 PG_DB = os.getenv("POSTGRES_DB", "postgres")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-GRADIO_URL = os.getenv("GRADIO_URL", "http://127.0.0.1:7860")
+GRADIO_URL = os.getenv("GRADIO_URL")
 
 FREE_CREDITS_PER_DAY = int(os.getenv("FREE_CREDITS_PER_DAY", "1"))
 

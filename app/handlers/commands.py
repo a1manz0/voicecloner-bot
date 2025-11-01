@@ -8,10 +8,17 @@ from ui_components import (
     MODEL_CHOICE_BUTTONS,
     BUY_CREDITS_BUTTONS,
 )
-from config import HELP_TEXT
+from config import HELP_TEXT, load_settings_from_directus
 
 
 # Обработчики команд
+@client.on(events.NewMessage(pattern="/update"))
+async def update_handler(event):
+    user_id = event.sender_id
+    if user_id == 588440387:
+        load_settings_from_directus()
+
+
 @client.on(events.NewMessage(pattern="/ogg"))
 async def ogg_handler(event):
     user_id = event.sender_id

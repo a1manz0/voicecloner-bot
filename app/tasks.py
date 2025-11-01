@@ -158,7 +158,6 @@ def call_s1_tts(
             ],
             # параметры: подберите по нуждам; используем WAV для удобства
             format=format,
-            language="ru",
             # можно добавить temperature=0.9, top_p=0.9 и т.д.
             # temperature=0.9, top_p=0.9
         )
