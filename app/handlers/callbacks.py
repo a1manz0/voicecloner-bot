@@ -75,7 +75,7 @@ async def callback_handler(event):
         if choice == "1":
             model_name = "F5-TTS"
             st["model_id"] = 1
-            await set_user_model(uid, 2)
+            await set_user_model(uid, 1)
         elif choice == "2":
             model_name = "OpenAudio S1"
             st["model_id"] = 2
