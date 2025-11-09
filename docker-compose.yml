@@ -1,4 +1,174 @@
 services:
+  redis:
+    restart: unless-stopped
+    image: redis:7
+    ports: ["6380:6379"]
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["5433:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  directus:
+    image: directus/directus:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      KEY: some_key
+      DATABASE_CLIENT: pg
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      STORAGE_LOCAL_ROOT: "./refs"
+    ports: ["8055:8055"]
+    depends_on:
+      - postgres
+
+  webhooks:
+    image: tts-telegram
+    restart: unless-stopped
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: uvicorn webhooks:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+      - ./hf_cache:/hf_cache
+    depends_on:
+      - postgres
+
+  tuna:
+    image: yuccastream/tuna:latest
+    container_name: tuna
+    restart: unless-stopped
+    ports: ["4040:4040"]
+    volumes:
+      # Persist конфиг tuna (а значит и токен)
+      - ./tuna-config:/root/.config/tuna
+    depends_on:
+      - webhooks
+    # команда: запускаем туннель к контейнеру webhooks:8000 и просим subdomain audiobot
+    command: ["http","webhooks:8000","--subdomain=audiobot"]
+
+  bot:
+    image: tts-telegram
+    restart: unless-stopped
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    environment:
+      API_ID: ${API_ID}
+      API_HASH: ${API_HASH}
+      BOT_TOKEN: ${BOT_TOKEN}
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_DB: ${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      DIRECTUS_URL: http://directus:8055
+      SHARED_BASE: /app/data
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./app:/app
+      - /tmp:/tmp 
+      - ./refs:/refs
+    depends_on:
+      - redis
+      - postgres
+      - directus
+
+  worker1:
+    image: tts-telegram
+    restart: unless-stopped
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: celery -A tasks.celery_app worker --loglevel=info -n worker1@%h -Q tts
+    env_file:
+      - .env
+    stop_signal: SIGTERM
+    stop_grace_period: 120s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      GRADIO_URL: http://f5-tts:7861
+      ACCENT_URL: http://webhooks_accent:17871
+      SHARED_BASE: /app/data
+      WORKER_NUMBER: 1
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_DB: ${POSTGRES_DB}
+
+    volumes:
+      - /tmp:/tmp 
+      - ./app:/app
+      - ./data:/app/data
+      - ./refs:/refs
+      - ./out:/out
+    # network_mode: "service:wireguard"
+    depends_on:
+      - redis
+      - postgres
+
+  worker2:
+    image: tts-telegram
+    restart: unless-stopped
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: celery -A tasks.celery_app worker --loglevel=info -n worker2@%h -Q tts
+    env_file:
+      - .env
+    stop_signal: SIGTERM
+    stop_grace_period: 120s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    # network_mode: "service:wireguard"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ACCENT_URL: http://webhooks_accent:17871
+      GRADIO_URL: http://f5-tts2:7862
+      SHARED_BASE: /app/data
+      WORKER_NUMBER: 2
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_DB: ${POSTGRES_DB}
+
+    volumes:
+      - ./app:/app
+      - /tmp:/tmp 
+      - ./data:/app/data
+      - ./refs:/refs
+      - ./out:/out
+    depends_on:
+      - redis
+      - postgres
+
   webhooks_accent:
     image: tts-telegram
     restart: unless-stopped
@@ -51,5 +221,17 @@ services:
       - "--host"
       - "0.0.0.0"
 
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer-vc-bot
+    ports:
+      - "9443:9443"        # HTTPS интерфейс Portainer
+      - "9000:9000"        # HTTP-интерфейс (при желании)
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
 volumes:
+  pgdata:
+  portainer_data:
   f5-tts-cache:

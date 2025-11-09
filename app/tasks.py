@@ -241,7 +241,7 @@ def call_elevenlabs_tts(
         return out_path
 
     except Exception as e:
-        print("call_s1_tts error:", e)
+        print("call_el_tts error:", e)
         raise
 
 
@@ -375,51 +375,6 @@ def send_file_with_persistent_menu(chat_id, file_path, send_as_mp3=False):
 
 from pathlib import Path
 from config import VC_PROXY_API_KEY, VC_PROXY_BACKEND_URL
-
-
-def generate_via_tts_backend(
-    user_id: int, ref_audio_local_path: str, text: str, temp_base_path: str
-) -> str:
-    # сформируем имя для сохраняемого файла
-    Path(temp_base_path).mkdir(parents=True, exist_ok=True)
-    out_filename = f"{user_id}_{int(time.time())}.mp3"
-    out_path = str(Path(temp_base_path) / out_filename)
-
-    headers = {"X-API-KEY": VC_PROXY_API_KEY}
-    with open(ref_audio_local_path, "rb") as f:
-        files = {
-            "ref_audio": (
-                os.path.basename(ref_audio_local_path),
-                f,
-                "application/octet-stream",
-            )
-        }
-        data = {"text": text}
-
-        # stream=True чтобы не держать весь ответ в памяти
-        resp = requests.post(
-            VC_PROXY_BACKEND_URL,
-            headers=headers,
-            files=files,
-            data=data,
-            stream=True,
-            timeout=120,
-        )
-        resp.raise_for_status()
-
-        # пишем поток в файл
-        with open(out_path, "wb") as outf:
-            for chunk in resp.iter_content(chunk_size=8192):
-                if chunk:
-                    outf.write(chunk)
-
-    # при желании удалить локальный референс (чтобы он не оставался)
-    try:
-        os.remove(ref_audio_local_path)
-    except Exception:
-        pass
-
-    return out_path
 
 
 @celery_app.task(bind=True, acks_late=True, soft_time_limit=360)
@@ -619,6 +574,7 @@ def synthesize_and_send(
             )
         return {"status": "ok", "sent_to": chat_id}
     except Exception as e:
+        print(e)
         send_text(chat_id, "Произошла ошибка во время генерации")
 
     finally:

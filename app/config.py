@@ -1,4 +1,4 @@
-import os, requests
+import os, requests, time
 
 ACCENT_URL = os.getenv("ACCENT_URL", "")
 API_TOKEN = os.getenv("API_TOKEN", "")
@@ -83,6 +83,7 @@ HELP_TEXT = (
     "Канал с новостями о проекте: https://t.me/a1manz001"
 )
 TTS_PROVIDER_MAP = {1: "F5-TTS", 2: "OpenAudio S1", 3: "EL"}
+BALANCE = 1
 
 
 def load_settings_from_directus():
@@ -109,7 +110,24 @@ def load_settings_from_directus():
 
     try:
         # Используем обычный синхронный requests, как вы и просили
-        response = requests.get(api_url, headers=headers, timeout=5)
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.get(api_url, headers=headers, timeout=5)
+                response.raise_for_status()  # если 4xx или 5xx — будет исключение
+                break  # если успешно — выходим из цикла
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries:
+                    print(
+                        f"Попытка {attempt} не удалась: {e}. Пробуем снова через 2 секунды..."
+                    )
+                    time.sleep(2)
+                else:
+                    print(
+                        f"Попытка {attempt} не удалась: {e}. "
+                        "Все попытки исчерпаны, бот продолжит работу со значениями по умолчанию."
+                    )
+                    raise
 
         # Проверяем на ошибки (4xx, 5xx)
         response.raise_for_status()

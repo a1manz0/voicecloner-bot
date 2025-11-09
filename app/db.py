@@ -1,6 +1,7 @@
 import asyncpg
 import datetime
-from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB, FREE_CREDITS_PER_DAY
+import config
+from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
 from typing import Optional
 
 _pool = None
@@ -30,15 +31,16 @@ async def ensure_user(user_id: int, username=None):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-        INSERT INTO users (user_id, username, link, auto_accent, model_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users (user_id, username, link, auto_accent, model_id, balance)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (user_id) DO NOTHING
         """,
             user_id,
             username,
             link,
-            "True",
+            True,
             1,
+            config.BALANCE,
         )
 
 
@@ -122,7 +124,7 @@ async def set_auto_accent(user_id: int, auto_accent: str):
             SET auto_accent = $1
             WHERE user_id = $2
             """,
-            auto_accent,
+            bool(auto_accent),
             user_id,
         )
 
